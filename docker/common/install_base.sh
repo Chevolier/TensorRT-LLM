@@ -18,7 +18,8 @@ init_ubuntu() {
         apt-get remove --purge -y tensorrt*
     fi
     pip uninstall -y tensorrt
-    pip install mpi4py
+    # pip install mpi4py
+    pip install git+https://github.com/Shixiaowei02/mpi4py.git@fix-setuptools-version
 }
 
 install_gcc_centos() {
