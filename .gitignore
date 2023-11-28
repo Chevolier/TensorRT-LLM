@@ -19,6 +19,7 @@ venv/
 .hypothesis/
 .idea/
 cpp/cmake-build-*
+models/
 
 # Testing
 .coverage.*

@@ -40,6 +40,30 @@ Here're some examples that take `v1_13b` as example:
 ##################
 # A workable way for baichuan2
 
+# Build the Baichuan V2 13B model using a 4 GPUs and FP16.
+python build.py --model_version v2_13b \
+                --model_dir /code/tensorrt_llm/models/v3 \
+                --dtype float16 \
+                --use_gemm_plugin float16 \
+                --use_gpt_attention_plugin float16 \
+                --output_dir ./tmp/baichuan_v2_13b/trt_engines/fp16/4-gpu/ \
+                --world_size 4
+
+# With 2-way tensor parallelism inference
+mpirun -n 4 --allow-run-as-root \
+    python run.py --model_version v2_13b \
+                  --max_output_len=50 \
+                  --tokenizer_dir=/code/tensorrt_llm/models/v3 \
+                  --engine_dir=./tmp/baichuan_v2_13b/trt_engines/fp16/4-gpu/ 
+                  
+mpirun -n 4 --allow-run-as-root \
+    python summarize.py --model_version v2_13b \
+                        --test_trt_llm \
+                        --hf_model_location /code/tensorrt_llm/models/v3 \
+                        --data_type fp16 \
+                        --engine_dir ./tmp/baichuan_v2_13b/trt_engines/fp16/4-gpu/ 
+                        
+#### INT8
 # Build the Baichuan V2 13B model using a 2 GPUs and apply INT8 weight-only quantization.
 CUDA_VISIBLE_DEVICES=0,1 python build.py --model_version v2_13b \
                 --model_dir /code/tensorrt_llm/models/Baichuan2-13B-Chat \
@@ -65,7 +89,6 @@ mpirun -n 2 --allow-run-as-root \
                         --engine_dir ./tmp/baichuan_v2_13b/trt_engines/int8_weight_only/2-gpu/
 
 ###################
-
 
 # Build the Baichuan V1 13B model using a single GPU and FP16.
 python build.py --model_version v1_13b \
@@ -112,15 +135,6 @@ python build.py --model_version v1_13b \
                 --world_size 2
 ```
 
-
-# Build Baichuan V2 13B using 2-way tensor parallelism.
-CUDA_VISIBLE_DEVICES=0,1 python build.py --model_version v2_13b \
-                --model_dir /code/tensorrt_llm/models/Baichuan2-13B-Chat \
-                --dtype float16 \
-                --use_gemm_plugin float16 \
-                --use_gpt_attention_plugin float16 \
-                --output_dir ./tmp/baichuan_v2_13b/trt_engines/fp16/2-gpu/ \
-                --world_size 2
                 
 ### Run
 
