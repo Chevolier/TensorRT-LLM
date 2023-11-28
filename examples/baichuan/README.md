@@ -49,7 +49,7 @@ python build.py --model_version v2_13b \
                 --output_dir ./tmp/baichuan_v2_13b/trt_engines/fp16/4-gpu/ \
                 --world_size 4
 
-# With 2-way tensor parallelism inference
+# With 4-way tensor parallelism inference
 mpirun -n 4 --allow-run-as-root \
     python run.py --model_version v2_13b \
                   --max_output_len=50 \
@@ -62,7 +62,19 @@ mpirun -n 4 --allow-run-as-root \
                         --hf_model_location /code/tensorrt_llm/models/v3 \
                         --data_type fp16 \
                         --engine_dir ./tmp/baichuan_v2_13b/trt_engines/fp16/4-gpu/ 
+ 
+## test flask
+mpirun -n 4 --allow-run-as-root \
+    python run_chat.py --model_version v2_13b \
+                        --hf_config_dir /code/tensorrt_llm/models/v3 \
+                        --generation_config_dir /code/tensorrt_llm/models/v3 \
+                        --engine_dir ./tmp/baichuan_v2_13b/trt_engines/fp16/4-gpu/ \
+                        --tokenizer_dir /code/tensorrt_llm/models/v3 \
+                        --max_output_len 1024 
+                    
                         
+
+
 #### INT8
 # Build the Baichuan V2 13B model using a 2 GPUs and apply INT8 weight-only quantization.
 CUDA_VISIBLE_DEVICES=0,1 python build.py --model_version v2_13b \

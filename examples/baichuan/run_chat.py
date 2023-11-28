@@ -37,7 +37,7 @@ app = Flask(__name__)
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--max_output_len', type=int, required=True)
+    parser.add_argument('--max_output_len', type=int, default=1024)
     parser.add_argument('--log_level', type=str, default='error')
     parser.add_argument('--model_version',
                         type=str,
@@ -48,8 +48,7 @@ def parse_arguments():
                         type=str,
                         default="baichuan-inc/Baichuan-13B-Chat",
                         help="Directory containing the tokenizer.model.")
-    parser.add_argument('--input_text', type=str, default='世界上第二高的山峰是哪座？')
-
+    
     parser.add_argument('--hf_config_dir',
                 type=str,
                 default="baichuan-inc/Baichuan-13B-Chat",
@@ -60,21 +59,6 @@ def parse_arguments():
                     default="baichuan-inc/Baichuan-13B-Chat",
                     help="Directory containing the generation config file")
 
-    parser.add_argument(
-        '--input_tokens',
-        dest='input_file',
-        type=str,
-        help=
-        'CSV or Numpy file containing tokenized input. Alternative to text input.',
-        default=None)
-    parser.add_argument('--output_csv',
-                        type=str,
-                        help='CSV file where the tokenized output is stored.',
-                        default=None)
-    parser.add_argument('--output_npy',
-                        type=str,
-                        help='Numpy file where the tokenized output is stored.',
-                        default=None)
     parser.add_argument('--num_beams',
                         type=int,
                         help="Use beam search if num_beams >1",
@@ -98,8 +82,8 @@ def build_chat_input(config, generation_config, tokenizer, messages: List[dict],
             rounds.append(round)
         return system, rounds
 
-    max_new_tokens = max_new_tokens or generation_config.max_new_tokens
-    max_input_tokens = config.model_max_length - max_new_tokens
+    max_new_tokens = max_new_tokens or generation_config['max_new_tokens']
+    max_input_tokens = config['model_max_length'] - max_new_tokens
     system, rounds = _parse_messages(messages, split_role="user")
     system_tokens = tokenizer.encode(system)
     max_history_tokens = max_input_tokens - len(system_tokens)
@@ -109,9 +93,9 @@ def build_chat_input(config, generation_config, tokenizer, messages: List[dict],
         round_tokens = []
         for message in round:
             if message["role"] == "user":
-                round_tokens.append(generation_config.user_token_id)
+                round_tokens.append(generation_config['user_token_id'])
             else:
-                round_tokens.append(generation_config.assistant_token_id)
+                round_tokens.append(generation_config['assistant_token_id'])
             round_tokens.extend(tokenizer.encode(message["content"]))
         if len(history_tokens) == 0 or len(history_tokens) + len(round_tokens) <= max_history_tokens:
             history_tokens = round_tokens + history_tokens  # concat left
@@ -121,10 +105,10 @@ def build_chat_input(config, generation_config, tokenizer, messages: List[dict],
 
     input_tokens = system_tokens + history_tokens
     if messages[-1]["role"] != "assistant":
-        input_tokens.append(generation_config.assistant_token_id)
+        input_tokens.append(generation_config['assistant_token_id'])
     input_tokens = input_tokens[-max_input_tokens:]  # truncate left
 
-    input_ids = torch.tensor(input_tokens, dtype=torch.int32, device='cuda')
+    input_ids = torch.tensor([input_tokens], dtype=torch.int32, device='cuda')
     input_lengths = torch.tensor([input_ids.size(1)],
                                     dtype=torch.int32,
                                      device='cuda')
@@ -181,10 +165,10 @@ def generate(
                                      top_k=top_k,
                                      top_p=top_p)
 
-    input_ids, input_lengths = build_chat_input(hf_config, 
-                                                generation_config, 
-                                                tokenizer, 
-                                                messages, 
+    input_ids, input_lengths = build_chat_input(hf_config,
+                                                generation_config,
+                                                tokenizer,
+                                                messages,
                                                 max_new_tokens=max_output_len)
 
     max_input_length = torch.max(input_lengths).item()
@@ -195,13 +179,14 @@ def generate(
 
     output_ids = decoder.decode(input_ids, input_lengths, sampling_config)
     torch.cuda.synchronize()
-
+    
+    output_text = ''
     if runtime_rank == 0:
         for b in range(input_lengths.size(0)):
             if num_beams <= 1:
                 output_begin = max_input_length
                 outputs = output_ids[b][0][output_begin:].tolist()
-                output_text = tokenizer.decode(outputs)
+                output_text = tokenizer.decode(outputs, skip_special_tokens=True)
                 print(f'Output: \"{output_text}\"')
             else:
                 for beam in range(num_beams):
@@ -209,7 +194,7 @@ def generate(
                     output_end = input_lengths[b] + max_output_len
                     outputs = output_ids[b][beam][
                         output_begin:output_end].tolist()
-                    output_text = tokenizer.decode(outputs)
+                    output_text = tokenizer.decode(outputs, skip_special_tokens=True,)
                     print(f'Output: \"{output_text}\"')
 
         output_ids = output_ids.reshape((-1, output_ids.size(2)))
@@ -282,7 +267,6 @@ def load_engine(
 
     return decoder, tokenizer, config, hf_config, generation_config
 
-
 # load engine
 args = parse_arguments()
 decoder, tokenizer, config, hf_config, generation_config = load_engine(args.engine_dir,
@@ -291,24 +275,39 @@ decoder, tokenizer, config, hf_config, generation_config = load_engine(args.engi
                                                                 args.generation_config_dir,
                                                                 args.log_level)
 
-
-@app.route('/invocations', methods=['POST'])
-def invocations():
-    prompt = request.json['prompt']
+if __name__ == '__main__':
+    prompt = '请以《湖南七日游》为题，写一篇小红书风格的旅游攻略文案，不少于500字。'
     
-    try:
-        messages = [{"role": "user", "content": prompt}]
-        response = generate(
-                        decoder,
-                        tokenizer,
-                        config,
-                        hf_config,
-                        generation_config,
-                        messages,
-                        max_output_len=1024
-                    )
-        
-        return jsonify({'response': response, 'code': 200})
+    messages = [{"role": "user", "content": prompt}]
+    
+    response = generate(
+                    decoder,
+                    tokenizer,
+                    config,
+                    hf_config,
+                    generation_config,
+                    messages,
+                    max_output_len=1024
+                )
+    
 
-    except Exception as e:
-        return jsonify({'error': str(e), 'code': 500})
+# @app.route('/invocations', methods=['POST'])
+# def invocations():
+#     prompt = request.json['prompt']
+    
+#     try:
+#         messages = [{"role": "user", "content": prompt}]
+#         response = generate(
+#                         decoder,
+#                         tokenizer,
+#                         config,
+#                         hf_config,
+#                         generation_config,
+#                         messages,
+#                         max_output_len=1024
+#                     )
+        
+#         return jsonify({'response': response, 'code': 200})
+
+#     except Exception as e:
+#         return jsonify({'error': str(e), 'code': 500})
