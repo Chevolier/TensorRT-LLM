@@ -275,9 +275,30 @@ decoder, tokenizer, config, hf_config, generation_config = load_engine(args.engi
                                                                 args.generation_config_dir,
                                                                 args.log_level)
 
-if __name__ == '__main__':
-    prompt = '请以《湖南七日游》为题，写一篇小红书风格的旅游攻略文案，不少于500字。'
+@app.route('/invocations', methods=['POST'])
+def invocations():
+    prompt = request.json['prompt']
     
+    try:
+        messages = [{"role": "user", "content": prompt}]
+        response = generate(
+                        decoder,
+                        tokenizer,
+                        config,
+                        hf_config,
+                        generation_config,
+                        messages,
+                        max_output_len=1024
+                    )
+        
+        return jsonify({'response': response, 'code': 200})
+
+    except Exception as e:
+        return jsonify({'error': str(e), 'code': 500})
+
+
+if __name__ == '__main__':
+    prompt = '请以《北京最值得去的5个地方》为题，写一篇小红书风格的旅游攻略文案，不少于500字。'
     messages = [{"role": "user", "content": prompt}]
     
     response = generate(
@@ -289,25 +310,8 @@ if __name__ == '__main__':
                     messages,
                     max_output_len=1024
                 )
-    
 
-# @app.route('/invocations', methods=['POST'])
-# def invocations():
-#     prompt = request.json['prompt']
-    
-#     try:
-#         messages = [{"role": "user", "content": prompt}]
-#         response = generate(
-#                         decoder,
-#                         tokenizer,
-#                         config,
-#                         hf_config,
-#                         generation_config,
-#                         messages,
-#                         max_output_len=1024
-#                     )
-        
-#         return jsonify({'response': response, 'code': 200})
+    # Run the Flask app
+    # app.run(debug=True)
 
-#     except Exception as e:
-#         return jsonify({'error': str(e), 'code': 500})
+
