@@ -70,10 +70,8 @@ mpirun -n 4 --allow-run-as-root \
                         --generation_config_dir /code/tensorrt_llm/models/v3 \
                         --engine_dir ./tmp/baichuan_v2_13b/trt_engines/fp16/4-gpu/ \
                         --tokenizer_dir /code/tensorrt_llm/models/v3 \
-                        --max_output_len 1024 
+                        --max_output_len 1024
                     
-                        
-
 
 #### INT8
 # Build the Baichuan V2 13B model using a 2 GPUs and apply INT8 weight-only quantization.

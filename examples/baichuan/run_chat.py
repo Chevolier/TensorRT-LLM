@@ -32,9 +32,6 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# EOS_TOKEN = 2
-# PAD_TOKEN = 0
-
 def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('--max_output_len', type=int, default=1024)
@@ -127,25 +124,8 @@ def generate(
     num_beams: int = 1,
 ):
     # tensorrt_llm.logger.set_level(log_level)
-    
-    # use_gpt_attention_plugin = config['plugin_config']['gpt_attention_plugin']
-    # remove_input_padding = config['plugin_config']['remove_input_padding']
-    # paged_kv_cache = config['plugin_config']['paged_kv_cache']
-    # tokens_per_block = config['plugin_config']['tokens_per_block']
-    # dtype = config['builder_config']['precision']
-    # world_size = config['builder_config']['tensor_parallel']
-    # assert world_size == tensorrt_llm.mpi_world_size(), \
-    #     f'Engine world size ({world_size}) != Runtime world size ({tensorrt_llm.mpi_world_size()})'
-    # num_heads = config['builder_config']['num_heads'] // world_size
-    # hidden_size = config['builder_config']['hidden_size'] // world_size
-    # vocab_size = config['builder_config']['vocab_size']
-    # num_layers = config['builder_config']['num_layers']
 
     runtime_rank = tensorrt_llm.mpi_rank()
-    # runtime_mapping = tensorrt_llm.Mapping(world_size,
-    #                                        runtime_rank,
-    #                                        tp_size=world_size)
-    # torch.cuda.set_device(runtime_rank % runtime_mapping.gpus_per_node)
 
     repetition_penalty = 1.1
     temperature = 0.3
@@ -297,7 +277,26 @@ def invocations():
         return jsonify({'error': str(e), 'code': 500})
 
 
+# def get_cmd(world_size, tritonserver, model_repo):
+#     cmd = 'mpirun --allow-run-as-root '
+#     for i in range(world_size):
+#         cmd += ' -n 1 {} --model-repository={} --disable-auto-complete-config --backend-config=python,shm-region-prefix-name=prefix{}_ : '.format(
+#             tritonserver, model_repo, i)
+#     cmd += '&'
+#     return cmd
+
+# if __name__ == '__main__':
+#     # args = parse_arguments()
+#     # cmd = get_cmd(int(args.world_size), args.tritonserver, args.model_repo)
+#     # subprocess.call(cmd, shell=True)
+#     # app.run(debug=True)
+#     pass
+#     args = parse_arguments()
+#     cmd = get_cmd(int(args.world_size), args.tritonserver, args.model_repo)
+#     subprocess.call(cmd, shell=True)
+
 if __name__ == '__main__':
+
     prompt = '请以《北京最值得去的5个地方》为题，写一篇小红书风格的旅游攻略文案，不少于500字。'
     messages = [{"role": "user", "content": prompt}]
     
@@ -312,6 +311,6 @@ if __name__ == '__main__':
                 )
 
     # Run the Flask app
-    # app.run(debug=True)
+    app.run(debug=True)
 
 
