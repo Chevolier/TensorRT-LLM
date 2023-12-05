@@ -28,9 +28,13 @@ from tensorrt_llm.runtime import ModelConfig, SamplingConfig
 from build import get_engine_name  # isort:skip
 from typing import List, Optional, Tuple, Union
 
-from flask import Flask, request, jsonify
+import pandas as pd
+from tqdm import tqdm
+import time
 
-app = Flask(__name__)
+# from flask import Flask, request, jsonify
+
+# app = Flask(__name__)
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -127,7 +131,7 @@ def generate(
 
     runtime_rank = tensorrt_llm.mpi_rank()
 
-    repetition_penalty = 1.1
+    repetition_penalty = 1.3
     temperature = 0.3
     top_k = 5
     top_p = 0.85
@@ -167,7 +171,7 @@ def generate(
                 output_begin = max_input_length
                 outputs = output_ids[b][0][output_begin:].tolist()
                 output_text = tokenizer.decode(outputs, skip_special_tokens=True)
-                print(f'Output: \"{output_text}\"')
+                # print(f'Output: \"{output_text}\"')
             else:
                 for beam in range(num_beams):
                     output_begin = input_lengths[b]
@@ -175,7 +179,7 @@ def generate(
                     outputs = output_ids[b][beam][
                         output_begin:output_end].tolist()
                     output_text = tokenizer.decode(outputs, skip_special_tokens=True,)
-                    print(f'Output: \"{output_text}\"')
+                    # print(f'Output: \"{output_text}\"')
 
         output_ids = output_ids.reshape((-1, output_ids.size(2)))
 
@@ -202,7 +206,8 @@ def load_engine(
     generation_config_path = os.path.join(generation_config_dir, 'generation_config.json')
     with open(generation_config_path, 'r') as f:
         generation_config = json.load(f)
-    
+        # generation_config['max_new_tokens'] = 1024
+        
     use_gpt_attention_plugin = config['plugin_config']['gpt_attention_plugin']
     remove_input_padding = config['plugin_config']['remove_input_padding']
     paged_kv_cache = config['plugin_config']['paged_kv_cache']
@@ -255,26 +260,26 @@ decoder, tokenizer, config, hf_config, generation_config = load_engine(args.engi
                                                                 args.generation_config_dir,
                                                                 args.log_level)
 
-@app.route('/invocations', methods=['POST'])
-def invocations():
-    prompt = request.json['prompt']
+# @app.route('/invocations', methods=['POST'])
+# def invocations():
+#     prompt = request.json['prompt']
     
-    try:
-        messages = [{"role": "user", "content": prompt}]
-        response = generate(
-                        decoder,
-                        tokenizer,
-                        config,
-                        hf_config,
-                        generation_config,
-                        messages,
-                        max_output_len=1024
-                    )
+#     try:
+#         messages = [{"role": "user", "content": prompt}]
+#         response = generate(
+#                         decoder,
+#                         tokenizer,
+#                         config,
+#                         hf_config,
+#                         generation_config,
+#                         messages,
+#                         max_output_len=1024
+#                     )
         
-        return jsonify({'response': response, 'code': 200})
+#         return jsonify({'response': response, 'code': 200})
 
-    except Exception as e:
-        return jsonify({'error': str(e), 'code': 500})
+#     except Exception as e:
+#         return jsonify({'error': str(e), 'code': 500})
 
 
 # def get_cmd(world_size, tritonserver, model_repo):
@@ -297,20 +302,33 @@ def invocations():
 
 if __name__ == '__main__':
 
-    prompt = '请以《北京最值得去的5个地方》为题，写一篇小红书风格的旅游攻略文案，不少于500字。'
+    prompt = '请以《哇塞，杭州太好玩了》为题，写一篇小红书风格的旅游攻略文案，不少于500字。'
     messages = [{"role": "user", "content": prompt}]
     
-    response = generate(
-                    decoder,
-                    tokenizer,
-                    config,
-                    hf_config,
-                    generation_config,
-                    messages,
-                    max_output_len=1024
-                )
+    path_test = "test_gen_v6_trt.csv"
+    df_test = pd.read_csv(path_test)
+    
+    for i, row in tqdm(df_test.iterrows(), total=df_test.shape[0]):
+        messages = [{"role": "user", "content": row['prompt']}]
+        start_time = time.time()
+        
+        response = generate(
+                        decoder,
+                        tokenizer,
+                        config,
+                        hf_config,
+                        generation_config,
+                        messages,
+                        max_output_len=1024
+                    )
 
-    # Run the Flask app
-    app.run(debug=True)
+        time_cost = time.time() - start_time
+        df_test.loc[i, 'response_trt_int8'] = response
+        df_test.loc[i, 'time_cost_trt_int8'] = time_cost
+            
+    df_test.to_csv("./test_gen_v6_trt_int8.csv", index=False, encoding='utf_8_sig')
+    
+    # # Run the Flask app
+    # app.run(debug=True)
 
 

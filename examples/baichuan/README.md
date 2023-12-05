@@ -40,7 +40,7 @@ Here're some examples that take `v1_13b` as example:
 ##################
 # A workable way for baichuan2
 
-# Build the Baichuan V2 13B model using a 4 GPUs and FP16.
+# Build the Baichuan V2 13B model using 4 GPUs and FP16.
 python build.py --model_version v2_13b \
                 --model_dir /code/tensorrt_llm/models/v3 \
                 --dtype float16 \
@@ -48,6 +48,37 @@ python build.py --model_version v2_13b \
                 --use_gpt_attention_plugin float16 \
                 --output_dir ./tmp/baichuan_v2_13b/trt_engines/fp16/4-gpu/ \
                 --world_size 4
+
+#                 --use_layernorm_plugin float16 \
+#                 --hidden_act gelu \
+#                 --remove_input_padding \
+#                 --parallel_build \
+
+# --parallel_build for world size 4 does not work
+# Build the Baichuan V2 13B model using 4 GPUs and FP16, TensorRT engines with inflight_batching capability
+python3 build.py --model_version v2_13b \
+                 --model_dir=/code/tensorrt_llm/models/v6 \
+                 --world_size=4 \
+                 --dtype float16 \
+                 --use_inflight_batching \
+                 --use_gemm_plugin float16 \
+                 --use_gpt_attention_plugin float16 \
+                 --paged_kv_cache \
+                 --output_dir=./tmp/baichuan_v2_13b/trt_engines/v6/fp16-inflight/4-gpu/
+
+
+# Build TensorRT engines with INT8
+python3 build.py --model_version v2_13b \
+                 --model_dir=/code/tensorrt_llm/models/v6 \
+                 --world_size=2 \
+                 --dtype float16 \
+                 --use_inflight_batching \
+                 --use_gemm_plugin float16 \
+                 --use_gpt_attention_plugin float16 \
+                 --paged_kv_cache \
+                 --use_weight_only \
+                 --parallel_build \
+                 --output_dir=./tmp/baichuan_v2_13b/trt_engines/v6/int8-inflight/2-gpu/
 
 # With 4-way tensor parallelism inference
 mpirun -n 4 --allow-run-as-root \
@@ -63,15 +94,23 @@ mpirun -n 4 --allow-run-as-root \
                         --data_type fp16 \
                         --engine_dir ./tmp/baichuan_v2_13b/trt_engines/fp16/4-gpu/ 
  
-## test flask
+## test run_chat
 mpirun -n 4 --allow-run-as-root \
     python run_chat.py --model_version v2_13b \
-                        --hf_config_dir /code/tensorrt_llm/models/v3 \
-                        --generation_config_dir /code/tensorrt_llm/models/v3 \
-                        --engine_dir ./tmp/baichuan_v2_13b/trt_engines/fp16/4-gpu/ \
-                        --tokenizer_dir /code/tensorrt_llm/models/v3 \
+                        --hf_config_dir /code/tensorrt_llm/models/v6 \
+                        --generation_config_dir /code/tensorrt_llm/models/v6 \
+                        --engine_dir ./tmp/baichuan_v2_13b/trt_engines/v6/fp16-inflight/4-gpu/ \
+                        --tokenizer_dir /code/tensorrt_llm/models/v6 \
                         --max_output_len 1024
                     
+
+mpirun -n 2 --allow-run-as-root \
+    python run_chat.py --model_version v2_13b \
+                        --hf_config_dir /code/tensorrt_llm/models/v6 \
+                        --generation_config_dir /code/tensorrt_llm/models/v6 \
+                        --engine_dir ./tmp/baichuan_v2_13b/trt_engines/v6/int8-inflight/2-gpu/ \
+                        --tokenizer_dir /code/tensorrt_llm/models/v6 \
+                        --max_output_len 1024
 
 #### INT8
 # Build the Baichuan V2 13B model using a 2 GPUs and apply INT8 weight-only quantization.
