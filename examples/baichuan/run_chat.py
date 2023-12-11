@@ -305,7 +305,7 @@ if __name__ == '__main__':
     prompt = '请以《哇塞，杭州太好玩了》为题，写一篇小红书风格的旅游攻略文案，不少于500字。'
     messages = [{"role": "user", "content": prompt}]
     
-    path_test = "test_gen_v6_trt.csv"
+    path_test = "test_gen_v6_trt_int8.csv"
     df_test = pd.read_csv(path_test)
     
     for i, row in tqdm(df_test.iterrows(), total=df_test.shape[0]):
@@ -323,10 +323,11 @@ if __name__ == '__main__':
                     )
 
         time_cost = time.time() - start_time
-        df_test.loc[i, 'response_trt_int8'] = response
-        df_test.loc[i, 'time_cost_trt_int8'] = time_cost
+        df_test.loc[i, 'response_trt_fp16_2gpu'] = response
+        df_test.loc[i, 'time_cost_trt_fp16_2gpu'] = time_cost
+        print(response)
             
-    df_test.to_csv("./test_gen_v6_trt_int8.csv", index=False, encoding='utf_8_sig')
+    df_test.to_csv("./test_gen_v6_trt_fp16_2gpu.csv", index=False, encoding='utf_8_sig')
     
     # # Run the Flask app
     # app.run(debug=True)
